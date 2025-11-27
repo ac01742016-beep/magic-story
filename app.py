@@ -1,83 +1,99 @@
 import streamlit as st
 from openai import OpenAI
 
-# === 網頁設定 ===
-st.set_page_config(page_title="MagicStory 魔法故事屋 VIP版", page_icon="🦄")
+# === App Config ===
+st.set_page_config(page_title="MagicStory Global", page_icon="🌍")
 
 # ==========================================
-# 🔒 VIP 門禁系統 (這段是新增的)
+# 🔒 VIP Gate System
 # ==========================================
 def check_password():
-    """檢查用戶輸入的密碼是否正確"""
-    # 1. 如果後台沒設密碼，就直接放行 (避免您自己測試時卡住)
     if "ACCESS_CODE" not in st.secrets:
-        return True
+        return True # Bypass if no code set
     
-    # 2. 在側邊欄顯示密碼框
-    password = st.sidebar.text_input("🔑 請輸入 VIP 通行碼", type="password")
+    # UI is now in English for global users
+    password = st.sidebar.text_input("🔑 VIP Access Code", type="password")
     
-    # 3. 比對密碼
     if password == st.secrets["ACCESS_CODE"]:
-        st.sidebar.success("✅ 驗證成功！歡迎 VIP 會員")
+        st.sidebar.success("✅ Access Granted!")
         return True
     else:
-        # 如果密碼還沒輸，或是輸錯
-        st.warning("🔒 這是付費會員專屬區域")
-        st.info("請在左側輸入通行碼來解鎖功能。")
-        st.stop() # ⛔ 這裡最關鍵：直接卡住，不讓程式往下跑
+        st.warning("🔒 VIP Content Locked")
+        st.info("Please enter your Access Code in the sidebar.")
+        st.stop()
 
-# 執行檢查 (如果不通過，程式就會在這裡停住)
 check_password()
 # ==========================================
 
+# === Main Interface (English) ===
+st.title("🌍 MagicStory Global")
+st.subheader("Create Personalized Audiobooks for Kids")
 
-# === 下面才是原本的功能 (只有通過檢查才會執行) ===
-st.title("🦄 MagicStory 魔法故事屋")
-st.subheader("為您的孩子客製化專屬的有聲繪本")
+# === Language Selector (關鍵升級：語言選單) ===
+language = st.selectbox(
+    "Select Story Language / 選擇故事語言", 
+    ["English", "Traditional Chinese (繁體中文)", "Japanese (日本語)", "Spanish (Español)", "French (Français)"]
+)
 
-# 自動取得 API Key
+# Auto-detect API Key
 if "OPENAI_API_KEY" in st.secrets:
     api_key = st.secrets["OPENAI_API_KEY"]
 else:
-    # 備用方案
     api_key = st.sidebar.text_input("OpenAI API Key", type="password")
 
+# User Inputs (English UI)
 col1, col2 = st.columns(2)
 with col1:
-    child_name = st.text_input("小朋友的名字", "小寶")
-    companion = st.text_input("故事夥伴", "粉紅獨角獸")
+    child_name = st.text_input("Child's Name", "Alex")
+    companion = st.text_input("Companion (e.g., Dinosaur)", "Blue Dragon")
 with col2:
-    mission = st.text_input("今天的冒險/任務", "去火星探險")
-    voice_option = st.selectbox("說故事聲音", ["nova (溫柔女聲)", "alloy (中性)", "echo (沉穩男聲)"])
+    mission = st.text_input("Adventure/Mission", "Going to the Moon")
+    # Voice selection
+    voice_option = st.selectbox("Voice Style", ["nova (Gentle Female)", "alloy (Neutral)", "echo (Deep Male)", "shimmer (Bright Female)"])
 
-if st.button("✨ 開始創作有聲繪本", type="primary"):
+# === Core Logic ===
+if st.button("✨ Generate Magic Story", type="primary"):
     if not api_key:
-        st.error("系統設定錯誤：找不到 API Key")
+        st.error("Error: API Key not found.")
     else:
         try:
             client = OpenAI(api_key=api_key)
             
-            # 1. 文字
-            with st.spinner('AI 正在編故事...'):
-                prompt = f"請為5歲的{child_name}和夥伴{companion}寫一個關於{mission}的溫馨睡前故事，繁體中文，350字以內。"
+            # 1. Text Generation (Multi-language Support)
+            with st.spinner(f'Writing story in {language}...'):
+                # 這裡的 Prompt 改成英文指令，但要求 AI 輸出成「用戶選的語言」
+                prompt = f"""
+                Write a warm, bedtime story for a 5-year-old child.
+                Child's Name: {child_name}
+                Companion: {companion}
+                Adventure: {mission}
+                
+                Requirements:
+                1. Length: Around 300 words.
+                2. Language: Write the story ONLY in {language}.
+                3. Tone: Fun, engaging, and educational.
+                """
+                
                 response = client.chat.completions.create(
                     model="gpt-4o-mini", messages=[{"role": "user", "content": prompt}]
                 )
                 story_text = response.choices[0].message.content
             
-            st.success("故事完成！正在繪圖...")
+            st.success("Story created! Generating illustration...")
+            st.markdown(f"### 📖 The Adventure of {child_name}")
             st.write(story_text)
             
-            # 2. 圖片 (DALL-E 3)
-            with st.spinner('AI 畫家中...'):
-                img_prompt = f"Children's book illustration, {child_name} and {companion} adventure: {mission}, warm style."
+            # 2. Image Generation (DALL-E 3)
+            with st.spinner('Drawing illustration...'):
+                # 繪圖提示詞維持英文，效果最好
+                img_prompt = f"Children's book illustration, {child_name} and {companion} adventure: {mission}. Style: Pixar animation style, warm lighting, high quality."
                 img_response = client.images.generate(
                     model="dall-e-3", prompt=img_prompt, size="1024x1024", quality="standard", n=1
                 )
                 st.image(img_response.data[0].url)
 
-            # 3. 語音
-            with st.spinner('錄製聲音中...'):
+            # 3. Audio Generation (TTS)
+            with st.spinner('Recording audio...'):
                 voice_code = voice_option.split(" ")[0]
                 audio_res = client.audio.speech.create(
                     model="tts-1", voice=voice_code, input=story_text
@@ -85,4 +101,4 @@ if st.button("✨ 開始創作有聲繪本", type="primary"):
                 st.audio(audio_res.content)
                 
         except Exception as e:
-            st.error(f"錯誤：{e}")
+            st.error(f"Error: {e}")
