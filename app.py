@@ -1,67 +1,92 @@
 import streamlit as st
 from openai import OpenAI
 
-# === App Config ===
-st.set_page_config(page_title="MagicStory Global", page_icon="🌍")
+# === App Config (網站基礎設定) ===
+st.set_page_config(page_title="MagicStory Global", page_icon="🦄")
 
 # ==========================================
-# 🔒 VIP Gate System
+# 🔒 VIP Gate System (商業核心：門禁系統)
 # ==========================================
 def check_password():
-    if "ACCESS_CODE" not in st.secrets:
-        return True # Bypass if no code set
+    """
+    檢查用戶輸入的密碼是否正確。
+    支援：
+    1. 付費密碼 (從 Secrets 讀取)
+    2. 行銷免費碼 (REDDIT_FREE, PH_LAUNCH)
+    """
     
-    # UI is now in English for global users
-    password = st.sidebar.text_input("🔑 VIP Access Code", type="password")
+    # 1. 取得您在雲端後台設定的「真正付費密碼」
+    # 如果後台沒設，預設就是 "vip888"
+    paid_code = st.secrets.get("ACCESS_CODE", "vip888")
     
-    if password == st.secrets["ACCESS_CODE"]:
+    # 2. 設定「有效密碼清單」 (包含付費碼 + 行銷碼)
+    valid_codes = [paid_code, "REDDIT_FREE", "PH_LAUNCH"]
+    
+    # 3. 顯示輸入框
+    password = st.sidebar.text_input("🔑 Access Code (VIP / Promo)", type="password")
+    
+    # 4. 檢查密碼
+    if password in valid_codes:
         st.sidebar.success("✅ Access Granted!")
+        
+        # 顯示歡迎訊息 (區分是付費大爺還是免費仔)
+        if password == paid_code:
+            st.sidebar.info("Welcome back, VIP Member! 👑")
+        else:
+            st.sidebar.info("Welcome Reddit/PH User! Enjoy your trial. 🚀")
+            
         return True
     else:
-        st.warning("🔒 VIP Content Locked")
-        st.info("Please enter your Access Code in the sidebar.")
-        st.stop()
+        # 沒輸入或輸入錯誤時的畫面
+        st.warning("🔒 Content Locked")
+        st.info("Please enter your Access Code to unlock.")
+        st.markdown("---")
+        st.markdown("**Don't have a code?**")
+        # 這裡可以放您的 Gumroad 連結，引導他們去買
+        st.markdown("[👉 Get VIP Access Here](https://gumroad.com/l/magicstory-vip)") 
+        st.stop() # ⛔ 停止程式，不讓看下面
 
+# 執行檢查
 check_password()
 # ==========================================
 
-# === Main Interface (English) ===
+
+# === Main Interface (English UI for Global Market) ===
 st.title("🌍 MagicStory Global")
 st.subheader("Create Personalized Audiobooks for Kids")
 
-# === Language Selector (關鍵升級：語言選單) ===
+# === Language Selector (語言選單) ===
 language = st.selectbox(
     "Select Story Language / 選擇故事語言", 
     ["English", "Traditional Chinese (繁體中文)", "Japanese (日本語)", "Spanish (Español)", "French (Français)"]
 )
 
-# Auto-detect API Key
+# === API Key Handling ===
+# 自動抓取 Key，如果沒有就跳出輸入框
 if "OPENAI_API_KEY" in st.secrets:
     api_key = st.secrets["OPENAI_API_KEY"]
 else:
     api_key = st.sidebar.text_input("OpenAI API Key", type="password")
 
-# User Inputs (English UI)
+# === User Inputs ===
 col1, col2 = st.columns(2)
 with col1:
     child_name = st.text_input("Child's Name", "Alex")
     companion = st.text_input("Companion (e.g., Dinosaur)", "Blue Dragon")
 with col2:
     mission = st.text_input("Adventure/Mission", "Going to the Moon")
-    # Voice selection
     voice_option = st.selectbox("Voice Style", ["nova (Gentle Female)", "alloy (Neutral)", "echo (Deep Male)", "shimmer (Bright Female)"])
 
 # === Core Logic ===
 if st.button("✨ Generate Magic Story", type="primary"):
     if not api_key:
-        st.error("Error: API Key not found.")
+        st.error("Error: API Key not found. Please check your settings.")
     else:
         try:
             client = OpenAI(api_key=api_key)
             
-            # 1. Text Generation (Multi-language Support)
+            # 1. Text Generation (GPT-4o)
             with st.spinner(f'Writing story in {language}...'):
-                # 這裡的 Prompt 改成英文指令，但要求 AI 輸出成「用戶選的語言」
                 prompt = f"""
                 Write a warm, bedtime story for a 5-year-old child.
                 Child's Name: {child_name}
@@ -69,7 +94,7 @@ if st.button("✨ Generate Magic Story", type="primary"):
                 Adventure: {mission}
                 
                 Requirements:
-                1. Length: Around 300 words.
+                1. Length: Around 350 words.
                 2. Language: Write the story ONLY in {language}.
                 3. Tone: Fun, engaging, and educational.
                 """
@@ -84,13 +109,12 @@ if st.button("✨ Generate Magic Story", type="primary"):
             st.write(story_text)
             
             # 2. Image Generation (DALL-E 3)
-            with st.spinner('Drawing illustration...'):
-                # 繪圖提示詞維持英文，效果最好
+            with st.spinner('Drawing illustration... (This takes about 10s)'):
                 img_prompt = f"Children's book illustration, {child_name} and {companion} adventure: {mission}. Style: Pixar animation style, warm lighting, high quality."
                 img_response = client.images.generate(
                     model="dall-e-3", prompt=img_prompt, size="1024x1024", quality="standard", n=1
                 )
-                st.image(img_response.data[0].url)
+                st.image(img_response.data[0].url, caption=f"Generated by DALL-E 3")
 
             # 3. Audio Generation (TTS)
             with st.spinner('Recording audio...'):
