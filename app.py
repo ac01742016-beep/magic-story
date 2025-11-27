@@ -3,16 +3,16 @@ from openai import OpenAI
 
 # === 網頁設定 ===
 st.set_page_config(page_title="MagicStory 魔法故事屋", page_icon="🦄")
-
 st.title("🦄 MagicStory 魔法故事屋")
 st.subheader("為您的孩子客製化專屬的睡前故事")
 
-# === 側邊欄：設定 API Key ===
-with st.sidebar:
-    st.markdown("### ⚙️ 設定")
-    # 這裡讓您輸入 Key，這樣比較安全，不會把 Key 寫死在程式碼裡
-    api_key = st.text_input("請輸入 OpenAI API Key", type="password")
-    st.markdown("[按這裡取得 API Key](https://platform.openai.com/api-keys)")
+# === 自動取得鑰匙 (關鍵修改) ===
+# 程式會先檢查雲端保險箱 (Secrets) 有沒有鑰匙
+if "OPENAI_API_KEY" in st.secrets:
+    api_key = st.secrets["OPENAI_API_KEY"]
+else:
+    # 如果沒有 (例如在您自己電腦跑)，才顯示輸入框
+    api_key = st.sidebar.text_input("請輸入 OpenAI API Key", type="password")
 
 # === 主畫面：輸入故事元素 ===
 col1, col2 = st.columns(2)
@@ -26,7 +26,7 @@ with col2:
 # === 核心邏輯 ===
 if st.button("✨ 開始生成故事", type="primary"):
     if not api_key:
-        st.error("請先在左側輸入您的 OpenAI API Key 喔！")
+        st.error("🔑 尚未設定 API Key！請聯絡網站管理員，或在側邊欄輸入。")
     else:
         try:
             client = OpenAI(api_key=api_key)
@@ -47,19 +47,16 @@ if st.button("✨ 開始生成故事", type="primary"):
 
             # 2. 生成語音
             with st.spinner('正在錄製聲音... (這可能需要幾秒鐘)'):
-                voice_code = voice_option.split(" ")[0] # 取出 nova, alloy 等代碼
+                voice_code = voice_option.split(" ")[0]
                 response_audio = client.audio.speech.create(
                     model="tts-1",
                     voice=voice_code,
                     input=story_text
                 )
                 
-                # 存成暫存檔並播放
-                audio_file = "story_output.mp3"
-                response_audio.stream_to_file(audio_file)
-                
+                # 這裡需要改用 byte stream 直接播放，避免雲端權限問題
                 st.markdown("### 🎧 點擊播放")
-                st.audio(audio_file)
+                st.audio(response_audio.content)
                 
         except Exception as e:
             st.error(f"發生錯誤：{e}")
